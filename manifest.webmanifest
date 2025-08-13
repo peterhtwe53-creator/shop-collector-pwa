@@ -1,12 +1,21 @@
 {
   "name": "Shop Collector",
   "short_name": "ShopCollector",
-  "start_url": "./?source=pwa",
+  "start_url": ".",
   "display": "standalone",
-  "background_color": "#0f1115",
-  "theme_color": "#306AFF",
+  "background_color": "#4CAF50",
+  "theme_color": "#4CAF50",
+  "description": "Collect shop info with GPS and photo.",
   "icons": [
-    { "src": "icons/pwa-icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/pwa-icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }
