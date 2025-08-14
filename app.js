@@ -1,7 +1,7 @@
 /* Corrected PWA app logic */
 document.addEventListener('DOMContentLoaded', () => {
     // --- PASTE YOUR WEB APP URL FROM GOOGLE APPS SCRIPT HERE ---
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwEXAWW3x_D1Xcr3Xc-45I2s2gPs18HmGD9vARQGDs8K77cY49fxc3GxwMm7iqu5a1w/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyP-JUwQdcvmC06JktAZZbNu-llOTxxgJ8OGYs2j3ZLpXwUkl9R8LEgdcyFB9Ke0maI/exec";
     
     // Get all necessary DOM elements
     const form = document.getElementById("shopForm");
@@ -16,9 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const starsContainer = document.getElementById("stars");
 
     // --- Geolocation Logic ---
-    let watchId; 
 
-    const startWatchingLocation = () => {
+    // Function to get the current location and populate the form fields
+    const getAndDisplayLocation = () => {
         locBadge.textContent = 'Locating…';
         locBadge.classList.add('locating');
 
@@ -35,43 +35,30 @@ document.addEventListener('DOMContentLoaded', () => {
             maximumAge: 0
         };
 
-        if (watchId) {
-            navigator.geolocation.clearWatch(watchId);
-        }
+        const geoSuccess = (position) => {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            const acc = position.coords.accuracy;
 
-        watchId = navigator.geolocation.watchPosition(geoSuccess, geoError, geoOptions);
-        console.log("Started watching location...");
-    };
-
-    const geoSuccess = (position) => {
-        const lat = position.coords.latitude;
-        const lon = position.coords.longitude;
-        const acc = position.coords.accuracy;
-
-        if (!locBadge.dataset.hasInitialFix) {
             latitudeInput.value = lat.toFixed(6);
             longitudeInput.value = lon.toFixed(6);
             accuracyInput.value = Math.round(acc);
             locBadge.textContent = `Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)} (±${Math.round(acc)}m)`;
             locBadge.classList.remove('locating');
             showToast('Location captured!', 'success');
-            locBadge.dataset.hasInitialFix = 'true';
-            
-            if (watchId) {
-                navigator.geolocation.clearWatch(watchId);
-            }
-        }
-    };
+        };
 
-    const geoError = (error) => {
-        const errorMessage = `Geolocation Error: ${error.message || 'Unknown error'}`;
-        locBadge.textContent = 'Location blocked or unavailable';
-        locBadge.classList.remove('locating');
-        showToast(errorMessage, 'error');
-        console.error(errorMessage, error);
-        if (watchId) {
-            navigator.geolocation.clearWatch(watchId);
-        }
+        const geoError = (error) => {
+            const errorMessage = `Geolocation Error: ${error.message || 'Unknown error'}`;
+            locBadge.textContent = 'Location blocked or unavailable';
+            locBadge.classList.remove('locating');
+            showToast(errorMessage, 'error');
+            console.error(errorMessage, error);
+        };
+
+        // Use getCurrentPosition for a one-time location request
+        navigator.geolocation.getCurrentPosition(geoSuccess, geoError, geoOptions);
+        console.log("Getting current location...");
     };
 
     // --- Star Rating Logic ---
@@ -139,9 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => toast.classList.remove('show'), 3000);
     }
 
-    startWatchingLocation();
-    refreshLocBtn.addEventListener("click", () => {
-        delete locBadge.dataset.hasInitialFix;
-        startWatchingLocation();
-    });
+    // Call the function on page load and when the refresh button is clicked
+    getAndDisplayLocation();
+    refreshLocBtn.addEventListener("click", getAndDisplayLocation);
 });
