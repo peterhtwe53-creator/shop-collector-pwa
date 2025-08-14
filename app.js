@@ -80,6 +80,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    // Fix: Add this line to initialize the stars visually
+    setStars(Number(popularityInput.value || 3));
+
     starsContainer.addEventListener("click", (e) => {
         const btn = e.target.closest(".star");
         if (!btn) return;
