@@ -1,7 +1,7 @@
 /* Corrected PWA app logic */
 document.addEventListener('DOMContentLoaded', () => {
     // --- PASTE YOUR WEB APP URL FROM GOOGLE APPS SCRIPT HERE ---
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx8Sw674WP0WEb5Fznvangh_PMWZ9l8BIujiOy-RtCgVEwRZARBdDILueiWR1TUBN9x/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyP-JUwQdcvmC06JktAZZbNu-llOTxxgJ8OGYs2j3ZLpXwUkl9R8LEgdcyFB9Ke0maI/exec";
     
     // Get all necessary DOM elements
     const form = document.getElementById("shopForm");
@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const popularityInput = document.getElementById("popularity");
     const starsContainer = document.getElementById("stars");
 
-    // --- Geolocation Logic (from the first snippet, but with improvements) ---
+    // --- Geolocation Logic ---
     let watchId; // To store the ID of the watchPosition call
 
     const startWatchingLocation = () => {
@@ -50,17 +50,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const lon = position.coords.longitude;
         const acc = position.coords.accuracy;
 
-        latitudeInput.value = lat.toFixed(6);
-        longitudeInput.value = lon.toFixed(6);
-        accuracyInput.value = Math.round(acc);
-        locBadge.textContent = `Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)} (±${Math.round(acc)}m)`;
-        locBadge.classList.remove('locating');
-
-        // Show a toast on the first successful fix or a more accurate one
-        if (!locBadge.dataset.hasInitialFix || parseFloat(accuracyInput.dataset.lastAccuracy || Infinity) > acc) {
-            showToast('Location updated!', 'success');
+        // **FIX:** Only update the UI and hidden fields on the first successful fix
+        // or if the user clicks "Refresh".
+        if (!locBadge.dataset.hasInitialFix) {
+            latitudeInput.value = lat.toFixed(6);
+            longitudeInput.value = lon.toFixed(6);
+            accuracyInput.value = Math.round(acc);
+            locBadge.textContent = `Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)} (±${Math.round(acc)}m)`;
+            locBadge.classList.remove('locating');
+            showToast('Location captured!', 'success');
             locBadge.dataset.hasInitialFix = 'true';
-            accuracyInput.dataset.lastAccuracy = acc;
+            
+            // **FIX:** Stop watching the location once it's captured to prevent further updates
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+            }
         }
     };
 
@@ -70,9 +74,12 @@ document.addEventListener('DOMContentLoaded', () => {
         locBadge.classList.remove('locating');
         showToast(errorMessage, 'error');
         console.error(errorMessage, error);
+        if (watchId) {
+            navigator.geolocation.clearWatch(watchId);
+        }
     };
 
-    // --- Photo Preview & Star Rating Logic (from the second snippet) ---
+    // --- Photo Preview & Star Rating Logic (no changes needed) ---
     const setStars = (n) => {
         popularityInput.value = String(n);
         document.querySelectorAll(".star").forEach((el) => {
@@ -80,7 +87,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // Fix: Add this line to initialize the stars visually
     setStars(Number(popularityInput.value || 3));
 
     starsContainer.addEventListener("click", (e) => {
@@ -103,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
         photoPreview.appendChild(wrapper);
     });
 
-    // --- Form Submission Logic (from the second snippet, but fixed) ---
+    // --- Form Submission Logic (no changes needed) ---
     form.addEventListener("submit", async (e) => {
         e.preventDefault();
 
@@ -122,7 +128,6 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.disabled = true;
 
         try {
-            // Use FormData for an efficient submission
             const formData = new FormData(form);
             const res = await fetch(SCRIPT_URL, {
                 method: "POST",
@@ -161,5 +166,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Capture initial location as soon as the app loads
     startWatchingLocation();
-    refreshLocBtn.addEventListener("click", startWatchingLocation);
+    refreshLocBtn.addEventListener("click", () => {
+        // Reset the flag and restart the watch
+        delete locBadge.dataset.hasInitialFix;
+        startWatchingLocation();
+    });
 });
