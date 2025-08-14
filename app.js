@@ -1,7 +1,7 @@
 // Wait for the document to be fully loaded
 document.addEventListener('DOMContentLoaded', () => {
   // --- PASTE YOUR WEB APP URL FROM GOOGLE APPS SCRIPT HERE ---
-  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxfgT_liv3QC1ag-E8Ma3tURdriQwx0Yj43s2z1E9VZTySdPb-CXu6kl2wDETyZA9R7/exec";
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxfgT_liv3QC1ag-E8Ma3tURdriQwx0Yj43s2z1E9VZTySdPb-CXu6kl2wDETyZA9R7/exec"; // **REMEMBER TO UPDATE THIS**
 
   // Get all necessary DOM elements
   const form = document.getElementById('shopForm');
@@ -17,99 +17,97 @@ document.addEventListener('DOMContentLoaded', () => {
   const longitudeInput = document.getElementById('longitude');
   const accuracyInput = document.getElementById('accuracy');
 
-  // --- 📍 NEW "QUICK & SMOOTH" GPS LOGIC ---
+  // --- 📍 NEW & IMPROVED GEOLOCATION HANDLING ---
 
-  let locationWatcherId = null;
-  let currentBestAccuracy = Infinity;
+  let watchId; // To store the ID of the watchPosition call
 
-  // This function uses `watchPosition` to get continuous, refined updates.
-  const startLocationWatcher = () => {
-    // 1. Reset state for a fresh watch
+  const startWatchingLocation = () => {
+    // 1. Give immediate feedback to the user
     locBadge.textContent = 'Locating…';
-    locBadge.classList.add('locating');
-    currentBestAccuracy = Infinity; // Reset accuracy tracking
+    locBadge.classList.add('locating'); // Optional: for styling
 
     if (!navigator.geolocation) {
       locBadge.textContent = 'GPS not supported';
       locBadge.classList.remove('locating');
+      showToast('Your browser does not support Geolocation.', 'error');
       return;
     }
 
-    // 2. Stop any previous watcher to prevent multiple listeners
-    if (locationWatcherId) {
-      navigator.geolocation.clearWatch(locationWatcherId);
-    }
-    
-    // 3. Define options for the GPS request
+    // 2. Define options for the GPS request
     const geoOptions = {
-      enableHighAccuracy: true,
-      timeout: 20000,      // Stop trying after 20 seconds
-      maximumAge: 0        // We always want a fresh location
+      enableHighAccuracy: true, // Request the most accurate location possible
+      timeout: 20000,          // Stop trying after 20 seconds (increased for better first fix)
+      maximumAge: 0            // Don't use a cached location
     };
 
-    // 4. Start watching the position. `geoSuccess` will be called repeatedly.
-    locationWatcherId = navigator.geolocation.watchPosition(geoSuccess, geoError, geoOptions);
-    console.log("Started GPS position watcher.");
+    // Clear any existing watch to prevent multiple listeners
+    if (watchId) {
+      navigator.geolocation.clearWatch(watchId);
+    }
+
+    // 3. Request the location asynchronously and continuously
+    // watchPosition will call geoSuccess repeatedly as location changes
+    watchId = navigator.geolocation.watchPosition(geoSuccess, geoError, geoOptions);
+    console.log("Started watching location...");
   };
 
-  // 5. Handle a successful location update
+  // 4. Handle a successful location fetch
   const geoSuccess = (position) => {
-    const newAccuracy = position.coords.accuracy;
-    
-    // We only accept the new location if it's more accurate than the last one.
-    if (newAccuracy < currentBestAccuracy) {
-      currentBestAccuracy = newAccuracy;
-      const lat = position.coords.latitude;
-      const lon = position.coords.longitude;
+    const lat = position.coords.latitude;
+    const lon = position.coords.longitude;
+    const acc = position.coords.accuracy;
 
-      // Update the hidden form inputs with the best coordinates so far
-      latitudeInput.value = lat;
-      longitudeInput.value = lon;
-      accuracyInput.value = newAccuracy;
+    // Update the hidden form inputs with the coordinates
+    latitudeInput.value = lat;
+    longitudeInput.value = lon;
+    accuracyInput.value = acc;
 
-      // Update the UI to show the user the improving accuracy
-      locBadge.textContent = `Accuracy: ${newAccuracy.toFixed(0)}m`;
-      locBadge.classList.remove('locating');
-      console.log(`New best location: Lat: ${lat}, Lon: ${lon}, Acc: ${newAccuracy}m`);
+    // Update the UI to show the user it worked
+    locBadge.textContent = `Lat: ${lat.toFixed(4)}, Lon: ${lon.toFixed(4)} (±${acc.toFixed(0)}m)`;
+    locBadge.classList.remove('locating');
+    console.log(`Location updated: ${lat}, ${lon} (Accuracy: ${acc}m)`);
+
+    // Show a small toast only when a new, more accurate location is found
+    // Or if it's the first successful fix.
+    if (!locBadge.dataset.hasInitialFix || parseFloat(accuracyInput.dataset.lastAccuracy || Infinity) > acc) {
+      showToast('Location updated!', 'success');
+      locBadge.dataset.hasInitialFix = 'true';
+      accuracyInput.dataset.lastAccuracy = acc;
     }
   };
 
-  // 6. Handle errors during the watch process
+  // 5. Handle errors (e.g., user denies permission, GPS unavailable)
   const geoError = (error) => {
     let errorMessage;
     switch (error.code) {
       case error.PERMISSION_DENIED:
-        errorMessage = "GPS permission denied";
+        errorMessage = "GPS permission denied. Please enable it in browser settings.";
         break;
       case error.POSITION_UNAVAILABLE:
-        errorMessage = "Location unavailable";
+        errorMessage = "Location information is unavailable.";
         break;
       case error.TIMEOUT:
-        errorMessage = "Location request timed out";
+        errorMessage = "The request to get user location timed out.";
         break;
       default:
-        errorMessage = "GPS error";
+        errorMessage = `An unknown GPS error occurred (Code: ${error.code}).`;
         break;
     }
     locBadge.textContent = errorMessage;
     locBadge.classList.remove('locating');
+    showToast(`Geolocation Error: ${errorMessage}`, 'error');
     console.error(`Geolocation Error: ${errorMessage} (Code: ${error.code})`);
-    
-    // Stop the watcher on critical errors
-    if (locationWatcherId) {
-        navigator.geolocation.clearWatch(locationWatcherId);
-    }
   };
-  
+
   // --- END OF GEOLOCATION LOGIC ---
 
-  // Start watching for location as soon as the app loads
-  startLocationWatcher();
+  // Start watching location as soon as the app loads
+  startWatchingLocation();
 
-  // The "Refresh" button now restarts the watcher for a fresh fix
-  refreshLocBtn.addEventListener('click', startLocationWatcher);
+  // Add event listener for the "Refresh" button to re-initiate watch
+  refreshLocBtn.addEventListener('click', startWatchingLocation);
 
-  // --- DATA SUBMISSION LOGIC (UNCHANGED) ---
+  // Handle form submission
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -124,38 +122,58 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // Check if location data is available
+    if (!latitudeInput.value || !longitudeInput.value) {
+      showToast('Waiting for GPS location. Please try again in a moment.', 'error');
+      resetButton();
+      return;
+    }
+
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = async () => {
+      // The form data will now include the location from the hidden fields
       const formData = new FormData(form);
       const dataToPost = {
-        fileData: reader.result,
+        // **IMPORTANT**: Send only the base64 part, not the "data:image/..." prefix
+        // The Apps Script will typically expect just the base64 string.
+        fileData: reader.result.split(',')[1],
         fileName: file.name,
         shopName: formData.get('shopName'),
         remark: formData.get('remark'),
         popularity: formData.get('popularity'),
         latitude: formData.get('latitude'),
         longitude: formData.get('longitude'),
-        accuracy: formData.get('accuracy') // Now includes accuracy
+        accuracy: formData.get('accuracy'), // Ensure accuracy is also sent
       };
-      
+
       try {
         const response = await fetch(SCRIPT_URL, {
           method: 'POST',
           body: JSON.stringify(dataToPost),
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          // Set Content-Type to application/json, as we're sending a JSON string
+          headers: { 'Content-Type': 'application/json' },
         });
+
+        // Check if the response is OK (status 200-299)
+        if (!response.ok) {
+          const errorText = await response.text(); // Get raw error response
+          throw new Error(`Server responded with status ${response.status}: ${errorText}`);
+        }
+
         const result = await response.json();
         if (result.status === 'SUCCESS') {
           showToast('Shop data saved successfully!');
           form.reset();
           photoPreview.innerHTML = '';
-          startLocationWatcher(); // Restart watcher for the next entry
+          // No need to call getLocation() again here, as watchPosition is continuous
         } else {
-          throw new Error(result.message);
+          // If the server returns a specific error message in the JSON
+          throw new Error(result.message || 'An unknown error occurred on the server.');
         }
       } catch (error) {
         showToast(`Error: ${error.message}`, 'error');
+        console.error("Submission Error:", error);
       } finally {
         resetButton();
       }
@@ -166,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   });
 
-  // Helper functions (no changes needed here)
+  // Helper functions (no changes needed here, but ensure they are present)
   function resetButton() {
     btnText.textContent = 'Submit';
     btnSpinner.style.display = 'none';
@@ -192,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('stars').addEventListener('click', (e) => {
     if (e.target.classList.contains('star')) {
-        document.getElementById('popularity').value = e.target.dataset.value;
+      document.getElementById('popularity').value = e.target.dataset.value;
     }
   });
 });
