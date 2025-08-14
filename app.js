@@ -1,7 +1,7 @@
 /* Corrected PWA app logic */
 document.addEventListener('DOMContentLoaded', () => {
     // --- PASTE YOUR WEB APP URL FROM GOOGLE APPS SCRIPT HERE ---
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyURrRHHR0sUyHu5pQ_vu0_rvtk3_68NeZykX0fhiZ91i_LgKFvbHCYti0rT87C__Sf/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyP-JUwQdcvmC06JktAZZbNu-llOTxxgJ8OGYs2j3ZLpXwUkl9R8LEgdcyFB9Ke0maI/exec";
     
     // Get all necessary DOM elements
     const form = document.getElementById("shopForm");
@@ -17,8 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const popularityInput = document.getElementById("popularity");
     const starsContainer = document.getElementById("stars");
 
-    // --- Geolocation Logic ---
-    let watchId; // To store the ID of the watchPosition call
+    // --- Geolocation Logic (no changes needed) ---
+    let watchId; 
 
     const startWatchingLocation = () => {
         locBadge.textContent = 'Locating…';
@@ -50,8 +50,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const lon = position.coords.longitude;
         const acc = position.coords.accuracy;
 
-        // **FIX:** Only update the UI and hidden fields on the first successful fix
-        // or if the user clicks "Refresh".
         if (!locBadge.dataset.hasInitialFix) {
             latitudeInput.value = lat.toFixed(6);
             longitudeInput.value = lon.toFixed(6);
@@ -61,7 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('Location captured!', 'success');
             locBadge.dataset.hasInitialFix = 'true';
             
-            // **FIX:** Stop watching the location once it's captured to prevent further updates
             if (watchId) {
                 navigator.geolocation.clearWatch(watchId);
             }
@@ -109,12 +106,13 @@ document.addEventListener('DOMContentLoaded', () => {
         photoPreview.appendChild(wrapper);
     });
 
-    // --- Form Submission Logic (no changes needed) ---
+    // --- FIX STARTS HERE: Form Submission with Base64 ---
     form.addEventListener("submit", async (e) => {
         e.preventDefault();
 
         // Basic form validation
-        if (!photoInput.files?.length) {
+        const file = photoInput.files?.[0];
+        if (!file) {
             showToast("Please attach a photo.", 'error');
             return;
         }
@@ -127,47 +125,68 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.classList.add("loading");
         submitBtn.disabled = true;
 
-        try {
-            const formData = new FormData(form);
-            const res = await fetch(SCRIPT_URL, {
-                method: "POST",
-                body: formData,
-            });
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+            const base64Data = reader.result.split(',')[1];
+            const dataToPost = {
+                shopName: document.getElementById('shopName').value,
+                remark: document.getElementById('remark').value,
+                popularity: popularityInput.value,
+                latitude: latitudeInput.value,
+                longitude: longitudeInput.value,
+                accuracy: accuracyInput.value,
+                fileData: base64Data,
+                fileName: file.name
+            };
 
-            if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(`Server responded with status ${res.status}: ${errorText}`);
-            }
+            try {
+                const res = await fetch(SCRIPT_URL, {
+                    method: "POST",
+                    body: JSON.stringify(dataToPost),
+                    headers: { 'Content-Type': 'application/json' },
+                });
 
-            const result = await res.json();
-            if (result.status === 'SUCCESS') {
-                showToast("Data submitted successfully!", 'success');
-                form.reset();
-                photoPreview.innerHTML = "";
-                setStars(3); // Reset stars to default
-            } else {
-                throw new Error(result.message || "An unknown error occurred on the server.");
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error(`Server responded with status ${res.status}: ${errorText}`);
+                }
+
+                const result = await res.json();
+                if (result.status === 'SUCCESS') {
+                    showToast("Data submitted successfully!", 'success');
+                    form.reset();
+                    photoPreview.innerHTML = "";
+                    setStars(3);
+                } else {
+                    throw new Error(result.message || "An unknown error occurred on the server.");
+                }
+            } catch (err) {
+                console.error("Submission Error:", err);
+                showToast(`Error: ${err.message}`, 'error');
+            } finally {
+                submitBtn.classList.remove("loading");
+                submitBtn.disabled = false;
             }
-        } catch (err) {
-            console.error("Submission Error:", err);
-            showToast(`Error: ${err.message}`, 'error');
-        } finally {
+        };
+
+        reader.onerror = () => {
+            showToast('Failed to read the file.', 'error');
             submitBtn.classList.remove("loading");
             submitBtn.disabled = false;
-        }
+        };
     });
+    // --- FIX ENDS HERE ---
 
-    // --- Utility Functions ---
+    // --- Utility Functions (no changes needed) ---
     function showToast(message, type = 'success') {
         toast.textContent = message;
         toast.className = `toast show ${type}`;
         setTimeout(() => toast.classList.remove('show'), 3000);
     }
 
-    // Capture initial location as soon as the app loads
     startWatchingLocation();
     refreshLocBtn.addEventListener("click", () => {
-        // Reset the flag and restart the watch
         delete locBadge.dataset.hasInitialFix;
         startWatchingLocation();
     });
