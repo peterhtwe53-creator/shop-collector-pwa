@@ -17,48 +17,64 @@ document.addEventListener('DOMContentLoaded', () => {
   const longitudeInput = document.getElementById('longitude');
   const accuracyInput = document.getElementById('accuracy');
 
-  // --- 📍 NEW & IMPROVED GEOLOCATION HANDLING ---
+  // --- 📍 NEW "QUICK & SMOOTH" GPS LOGIC ---
 
-  const getLocation = () => {
-    // 1. Give immediate feedback to the user
+  let locationWatcherId = null;
+  let currentBestAccuracy = Infinity;
+
+  // This function uses `watchPosition` to get continuous, refined updates.
+  const startLocationWatcher = () => {
+    // 1. Reset state for a fresh watch
     locBadge.textContent = 'Locating…';
-    locBadge.classList.add('locating'); // Optional: for styling
+    locBadge.classList.add('locating');
+    currentBestAccuracy = Infinity; // Reset accuracy tracking
 
     if (!navigator.geolocation) {
       locBadge.textContent = 'GPS not supported';
       locBadge.classList.remove('locating');
       return;
     }
+
+    // 2. Stop any previous watcher to prevent multiple listeners
+    if (locationWatcherId) {
+      navigator.geolocation.clearWatch(locationWatcherId);
+    }
     
-    // 2. Define options for the GPS request
+    // 3. Define options for the GPS request
     const geoOptions = {
-      enableHighAccuracy: true, // Request the most accurate location possible
-      timeout: 15000,          // Stop trying after 15 seconds
-      maximumAge: 0            // Don't use a cached location
+      enableHighAccuracy: true,
+      timeout: 20000,      // Stop trying after 20 seconds
+      maximumAge: 0        // We always want a fresh location
     };
 
-    // 3. Request the location asynchronously
-    navigator.geolocation.getCurrentPosition(geoSuccess, geoError, geoOptions);
+    // 4. Start watching the position. `geoSuccess` will be called repeatedly.
+    locationWatcherId = navigator.geolocation.watchPosition(geoSuccess, geoError, geoOptions);
+    console.log("Started GPS position watcher.");
   };
 
-  // 4. Handle a successful location fetch
+  // 5. Handle a successful location update
   const geoSuccess = (position) => {
-    const lat = position.coords.latitude;
-    const lon = position.coords.longitude;
-    const acc = position.coords.accuracy;
+    const newAccuracy = position.coords.accuracy;
+    
+    // We only accept the new location if it's more accurate than the last one.
+    if (newAccuracy < currentBestAccuracy) {
+      currentBestAccuracy = newAccuracy;
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
 
-    // Update the hidden form inputs with the coordinates
-    latitudeInput.value = lat;
-    longitudeInput.value = lon;
-    accuracyInput.value = acc;
+      // Update the hidden form inputs with the best coordinates so far
+      latitudeInput.value = lat;
+      longitudeInput.value = lon;
+      accuracyInput.value = newAccuracy;
 
-    // Update the UI to show the user it worked
-    locBadge.textContent = `Lat: ${lat.toFixed(4)}, Lon: ${lon.toFixed(4)}`;
-    locBadge.classList.remove('locating');
-    console.log(`Location found: ${lat}, ${lon} (Accuracy: ${acc}m)`);
+      // Update the UI to show the user the improving accuracy
+      locBadge.textContent = `Accuracy: ${newAccuracy.toFixed(0)}m`;
+      locBadge.classList.remove('locating');
+      console.log(`New best location: Lat: ${lat}, Lon: ${lon}, Acc: ${newAccuracy}m`);
+    }
   };
 
-  // 5. Handle errors (e.g., user denies permission, GPS unavailable)
+  // 6. Handle errors during the watch process
   const geoError = (error) => {
     let errorMessage;
     switch (error.code) {
@@ -78,17 +94,22 @@ document.addEventListener('DOMContentLoaded', () => {
     locBadge.textContent = errorMessage;
     locBadge.classList.remove('locating');
     console.error(`Geolocation Error: ${errorMessage} (Code: ${error.code})`);
+    
+    // Stop the watcher on critical errors
+    if (locationWatcherId) {
+        navigator.geolocation.clearWatch(locationWatcherId);
+    }
   };
   
   // --- END OF GEOLOCATION LOGIC ---
 
-  // Get location as soon as the app loads
-  getLocation();
+  // Start watching for location as soon as the app loads
+  startLocationWatcher();
 
-  // Add event listener for the "Refresh" button
-  refreshLocBtn.addEventListener('click', getLocation);
+  // The "Refresh" button now restarts the watcher for a fresh fix
+  refreshLocBtn.addEventListener('click', startLocationWatcher);
 
-  // Handle form submission (this part is mostly the same)
+  // --- DATA SUBMISSION LOGIC (UNCHANGED) ---
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -106,7 +127,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = async () => {
-      // The form data will now include the location from the hidden fields
       const formData = new FormData(form);
       const dataToPost = {
         fileData: reader.result,
@@ -116,6 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
         popularity: formData.get('popularity'),
         latitude: formData.get('latitude'),
         longitude: formData.get('longitude'),
+        accuracy: formData.get('accuracy') // Now includes accuracy
       };
       
       try {
@@ -129,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
           showToast('Shop data saved successfully!');
           form.reset();
           photoPreview.innerHTML = '';
-          getLocation(); // Get a new location for the next entry
+          startLocationWatcher(); // Restart watcher for the next entry
         } else {
           throw new Error(result.message);
         }
