@@ -1,13 +1,11 @@
 /* Corrected PWA app logic */
 document.addEventListener('DOMContentLoaded', () => {
     // --- PASTE YOUR WEB APP URL FROM GOOGLE APPS SCRIPT HERE ---
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxWW0TvrJkhHXAbuMcG_Xx2RzJZoswljf1md8QAmclBBQgnIA-EMxxfi_t0x_TQZBUK/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw5yMj9pfSUN0Cyz5VJktzx3PrSV4h-ko0PrXqJcIGsSFtocBHhqiO3ceCf0wKYvau-/exec";
 
     // Get all necessary DOM elements
     const form = document.getElementById("shopForm");
     const submitBtn = document.getElementById("submitBtn");
-    const photoInput = document.getElementById("photo");
-    const photoPreview = document.getElementById("photoPreview");
     const toast = document.getElementById("toast");
     const locBadge = document.getElementById("locBadge");
     const refreshLocBtn = document.getElementById("refreshLoc");
@@ -76,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- Photo Preview & Star Rating Logic (no changes) ---
+    // --- Star Rating Logic (no changes) ---
     const setStars = (n) => {
         popularityInput.value = String(n);
         document.querySelectorAll(".star").forEach((el) => {
@@ -91,30 +89,11 @@ document.addEventListener('DOMContentLoaded', () => {
         setStars(Number(btn.dataset.value));
     });
 
-    photoInput.addEventListener("change", () => {
-        photoPreview.innerHTML = "";
-        const file = photoInput.files?.[0];
-        if (!file) return;
-        const url = URL.createObjectURL(file);
-        const wrapper = document.createElement("div");
-        wrapper.className = "thumb";
-        const img = document.createElement("img");
-        img.src = url;
-        img.alt = "Selected photo preview";
-        wrapper.appendChild(img);
-        photoPreview.appendChild(wrapper);
-    });
-
-    // --- FIX STARTS HERE: Form Submission with Base64 ---
+    // --- Form Submission Logic (simplified for no image) ---
     form.addEventListener("submit", async (e) => {
         e.preventDefault();
 
         // Basic form validation
-        const file = photoInput.files?.[0];
-        if (!file) {
-            showToast("Please attach a photo.", 'error');
-            return;
-        }
         if (!latitudeInput.value || !longitudeInput.value) {
             showToast("Waiting for GPS location. Please try again in a moment.", 'error');
             return;
@@ -123,59 +102,44 @@ document.addEventListener('DOMContentLoaded', () => {
         // Show loading state
         submitBtn.classList.add("loading");
         submitBtn.disabled = true;
-
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = async () => {
-            const base64Data = reader.result.split(',')[1];
-            const dataToPost = {
-                shopName: document.getElementById('shopName').value,
-                remark: document.getElementById('remark').value,
-                popularity: popularityInput.value,
-                latitude: latitudeInput.value,
-                longitude: longitudeInput.value,
-                accuracy: accuracyInput.value,
-                fileData: base64Data,
-                fileName: file.name
-            };
-
-            try {
-                const res = await fetch(SCRIPT_URL, {
-                    method: "POST",
-                    body: JSON.stringify(dataToPost),
-                    headers: { 'Content-Type': 'application/json' },
-                });
-
-                if (!res.ok) {
-                    const errorText = await res.text();
-                    throw new Error(`Server responded with status ${res.status}: ${errorText}`);
-                }
-
-                const result = await res.json();
-                if (result.status === 'SUCCESS') {
-                    showToast("Data submitted successfully!", 'success');
-                    form.reset();
-                    photoPreview.innerHTML = "";
-                    setStars(3);
-                } else {
-                    throw new Error(result.message || "An unknown error occurred on the server.");
-                }
-            } catch (err) {
-                console.error("Submission Error:", err);
-                showToast(`Error: ${err.message}`, 'error');
-            } finally {
-                submitBtn.classList.remove("loading");
-                submitBtn.disabled = false;
-            }
+        
+        const dataToPost = {
+            shopName: document.getElementById('shopName').value,
+            remark: document.getElementById('remark').value,
+            popularity: popularityInput.value,
+            latitude: latitudeInput.value,
+            longitude: longitudeInput.value,
+            accuracy: accuracyInput.value
         };
 
-        reader.onerror = () => {
-            showToast('Failed to read the file.', 'error');
+        try {
+            const res = await fetch(SCRIPT_URL, {
+                method: "POST",
+                body: JSON.stringify(dataToPost),
+                headers: { 'Content-Type': 'application/json' },
+            });
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(`Server responded with status ${res.status}: ${errorText}`);
+            }
+
+            const result = await res.json();
+            if (result.status === 'SUCCESS') {
+                showToast("Data submitted successfully!", 'success');
+                form.reset();
+                setStars(3);
+            } else {
+                throw new Error(result.message || "An unknown error occurred on the server.");
+            }
+        } catch (err) {
+            console.error("Submission Error:", err);
+            showToast(`Error: ${err.message}`, 'error');
+        } finally {
             submitBtn.classList.remove("loading");
             submitBtn.disabled = false;
-        };
+        }
     });
-    // --- FIX ENDS HERE ---
 
     // --- Utility Functions (no changes) ---
     function showToast(message, type = 'success') {
@@ -190,3 +154,4 @@ document.addEventListener('DOMContentLoaded', () => {
         startWatchingLocation();
     });
 });
+This video provides a comprehensive guide on how to create a data entry form in Excel and how to set up an automated submission button using macros.
