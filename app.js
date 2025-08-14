@@ -1,7 +1,7 @@
 /* Corrected PWA app logic */
 document.addEventListener('DOMContentLoaded', () => {
     // --- PASTE YOUR WEB APP URL FROM GOOGLE APPS SCRIPT HERE ---
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyURrRHHR0sUyHu5pQ_vu0_rvtk3_68NeZykX0fhiZ91i_LgKFvbHCYti0rT87C__Sf/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyP-JUwQdcvmC06JktAZZbNu-llOTxxgJ8OGYs2j3ZLpXwUkl9R8LEgdcyFB9Ke0maI/exec";
     
     // Get all necessary DOM elements
     const form = document.getElementById("shopForm");
@@ -76,43 +76,61 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- Photo Preview & Star Rating Logic (no changes needed) ---
+    // --- Photo Preview & Star Rating Logic (with new canvas approach) ---
     const setStars = (n) => {
         popularityInput.value = String(n);
         document.querySelectorAll(".star").forEach((el) => {
             el.classList.toggle("active", Number(el.dataset.value) <= n);
         });
     };
-
+    
     setStars(Number(popularityInput.value || 3));
-
     starsContainer.addEventListener("click", (e) => {
         const btn = e.target.closest(".star");
         if (!btn) return;
         setStars(Number(btn.dataset.value));
     });
 
-    photoInput.addEventListener("change", () => {
-        photoPreview.innerHTML = "";
-        const file = photoInput.files?.[0];
-        if (!file) return;
-        const url = URL.createObjectURL(file);
-        const wrapper = document.createElement("div");
-        wrapper.className = "thumb";
-        const img = document.createElement("img");
-        img.src = url;
-        img.alt = "Selected photo preview";
-        wrapper.appendChild(img);
-        photoPreview.appendChild(wrapper);
-    });
+    let photoDataUrl = null; // Store the Base64 data here
 
-    // --- FIX STARTS HERE: Form Submission with Base64 ---
+    photoInput.addEventListener("change", (e) => {
+        photoPreview.innerHTML = "";
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0, img.width, img.height);
+                
+                // Store the Base64 data in a variable
+                photoDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                
+                // Display the image preview
+                const wrapper = document.createElement("div");
+                wrapper.className = "thumb";
+                const previewImg = document.createElement("img");
+                previewImg.src = photoDataUrl;
+                previewImg.alt = "Selected photo preview";
+                wrapper.appendChild(previewImg);
+                photoPreview.appendChild(wrapper);
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+    
+    // --- FIX STARTS HERE: Form Submission with Base64 from Canvas ---
     form.addEventListener("submit", async (e) => {
         e.preventDefault();
 
         // Basic form validation
-        const file = photoInput.files?.[0];
-        if (!file) {
+        if (!photoDataUrl) {
             showToast("Please attach a photo.", 'error');
             return;
         }
@@ -125,56 +143,46 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.classList.add("loading");
         submitBtn.disabled = true;
 
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = async () => {
-            const base64Data = reader.result.split(',')[1];
-            const dataToPost = {
-                shopName: document.getElementById('shopName').value,
-                remark: document.getElementById('remark').value,
-                popularity: popularityInput.value,
-                latitude: latitudeInput.value,
-                longitude: longitudeInput.value,
-                accuracy: accuracyInput.value,
-                fileData: base64Data,
-                fileName: file.name
-            };
-
-            try {
-                const res = await fetch(SCRIPT_URL, {
-                    method: "POST",
-                    body: JSON.stringify(dataToPost),
-                    headers: { 'Content-Type': 'application/json' },
-                });
-
-                if (!res.ok) {
-                    const errorText = await res.text();
-                    throw new Error(`Server responded with status ${res.status}: ${errorText}`);
-                }
-
-                const result = await res.json();
-                if (result.status === 'SUCCESS') {
-                    showToast("Data submitted successfully!", 'success');
-                    form.reset();
-                    photoPreview.innerHTML = "";
-                    setStars(3);
-                } else {
-                    throw new Error(result.message || "An unknown error occurred on the server.");
-                }
-            } catch (err) {
-                console.error("Submission Error:", err);
-                showToast(`Error: ${err.message}`, 'error');
-            } finally {
-                submitBtn.classList.remove("loading");
-                submitBtn.disabled = false;
-            }
+        const dataToPost = {
+            shopName: document.getElementById('shopName').value,
+            remark: document.getElementById('remark').value,
+            popularity: popularityInput.value,
+            latitude: latitudeInput.value,
+            longitude: longitudeInput.value,
+            accuracy: accuracyInput.value,
+            fileData: photoDataUrl.split(',')[1],
+            fileName: 'photo.jpg' // A generic name is fine for this method
         };
 
-        reader.onerror = () => {
-            showToast('Failed to read the file.', 'error');
+        try {
+            const res = await fetch(SCRIPT_URL, {
+                method: "POST",
+                body: JSON.stringify(dataToPost),
+                headers: { 'Content-Type': 'application/json' },
+            });
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(`Server responded with status ${res.status}: ${errorText}`);
+            }
+
+            const result = await res.json();
+            if (result.status === 'SUCCESS') {
+                showToast("Data submitted successfully!", 'success');
+                form.reset();
+                photoPreview.innerHTML = "";
+                setStars(3);
+                photoDataUrl = null; // Clear the stored data
+            } else {
+                throw new Error(result.message || "An unknown error occurred on the server.");
+            }
+        } catch (err) {
+            console.error("Submission Error:", err);
+            showToast(`Error: ${err.message}`, 'error');
+        } finally {
             submitBtn.classList.remove("loading");
             submitBtn.disabled = false;
-        };
+        }
     });
     // --- FIX ENDS HERE ---
 
