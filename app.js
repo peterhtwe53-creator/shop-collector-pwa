@@ -1,7 +1,7 @@
 /* Corrected PWA app logic */
 document.addEventListener('DOMContentLoaded', () => {
     // --- PASTE YOUR WEB APP URL FROM GOOGLE APPS SCRIPT HERE ---
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw5yMj9pfSUN0Cyz5VJktzx3PrSV4h-ko0PrXqJcIGsSFtocBHhqiO3ceCf0wKYvau-/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxWW0TvrJkhHXAbuMcG_Xx2RzJZoswljf1md8QAmclBBQgnIA-EMxxfi_t0x_TQZBUK/exec";
 
     // Get all necessary DOM elements
     const form = document.getElementById("shopForm");
